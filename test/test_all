@@ -1,0 +1,57 @@
+#!/bin/bash
+
+set -e
+
+branch=${1:-heroku-16}
+destroy=${2:-1}
+repo=${3:-github.com/virtualstaticvoid}
+log="${4:-test-`date +%Y%m%d-%H%M`}.log"
+
+function test() {
+  dir=$1
+  pushd $dir > /dev/null
+
+  echo "#---------- Testing $dir ----------"
+  echo "# see $dir$log..."
+
+  # wait for 60 seconds
+  /bin/bash install $branch $destroy $repo 60 &> $log
+
+  # read log for errors (in this directory)
+  if [[ -f $log ]]; then
+    #
+    # example error outputs matched:
+    #  * removing '/app/vendor/R/lib/R/library/Package'
+    #  ERROR: compilation failed for package ‘Package’
+    #  *** caught segfault ***
+    #  Execution halted
+    #  fatal: An unhandled exception occurred
+    #  !     Push rejected, failed to compile R app.
+    #  Warning: Error in loadNamespace: there is no package called 'xxx'
+    #
+    grep -E "(ERROR|Error|removing|segfault|halted|fatal|rejected)" $log
+    result=$?
+  else
+    echo "No log found..."
+    result=0
+  fi
+
+  if [[ "$result" -eq "0" ]]; then
+    echo -e "\033[1;31mFAILED: $d\033[0m"
+  else
+    echo "SUCCESS: $d"
+  fi
+  echo
+  popd > /dev/null
+}
+
+echo > $log
+echo Testing using $branch branch >> $log
+echo >> $log
+
+for d in */ ; do
+  echo Testing $d...
+  test "$d" &>> $log || echo
+done
+
+echo >> $log
